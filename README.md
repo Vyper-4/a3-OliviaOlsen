@@ -2,16 +2,14 @@
 
 https://a3-oliviaolsen.onrender.com
 
-- the goal of the application
 The goal of this app was to allow users to track records on old arcade games within a friendgroup. These are old games, and records usually take years, so it's divided by years, although in hindsight I should have included full dates.
-- challenges you faced in realizing the application
+
 Adding the login functionality took a LOT of time. I'm extremely thankful I didn't choose to do oAuth, because I chose a really basic method and it still wound up taking me almost 6 hours to get the login working. Hopefully it's sufficiently secure.
-- what authentication strategy you chose to use and why (choosing one because it seemed the easiest to implement is perfectly acceptable)
-I chose implementing my own method of basic username and password, similar to what was outlined in class.
-- what CSS framework you used and why
-  - include any modifications to the CSS framework you made via custom CSS you authored
+
+I chose implementing my own method of basic username and password, similar to what was outlined in class because the note about oAuth being hard scared me.
+
 I used Tailwind! It didn't really have much preset stuff, but it made my own customization and design choices a lot easier. It's still basic, but none of it looks like standard HTML anymore in my opinion. I'm especially proud of the login page, that one took a while.
-- a list of Express middleware packages you used and a short (one sentence) summary of what each one does. If you use a custom function, please add a little more detail about what it does.
+
 I basically just used the built-in ones, express.json and express.static. These allowed to to parse json and serve static files from a directory(public), respectively.
 
 ## Technical Achievements
