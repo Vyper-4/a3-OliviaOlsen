@@ -1,144 +1,147 @@
+require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-//Starter data
-let appdata = [
-  { record: 'pacman', year: 2007, holder: 'Leona Zwart', currentlyHeld: true },
-  { record: 'galaga', year: 2006, holder: 'Alex Olsen', currentlyHeld: true },
-  { record: 'snake',  year: 2006, holder: 'Valerie Bellefontaine', currentlyHeld: true }
-];
+//Remove this later for security, use env file isntead
+const MONGO_URL = process.env.MONGO_URL;
+const DB_NAME = 'cs4241a3';
 
-const users = {}; // user storage in the format username: password
+let db, records, users;
 
-app.listen(PORT, (error) =>{
-    if(!error)
-        console.log("Server is Successfully Running, and App is listening on port "+ PORT);
-    else 
-        console.log("Error occurred, server can't start", error);
-    }
-);
+async function main() {
+  const client = new MongoClient(MONGO_URL);
+  await client.connect();
+  db = client.db(DB_NAME);
+  records = db.collection('records');
+  users = db.collection('users');
+
+  console.log('Connected to MongoDB');
+
+  //start server after DB connection
+  app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
+  });
+}
+
+main().catch(err => console.error(err));
 
 app.use(express.json());
-
-// Serve static files from the 'public' folder
+//Serve static files from the 'public' folder
 app.use(express.static(path.join(__dirname, 'public')));
 
+//login route
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-app.post('/loginAttempt', (req, res) => {
+//loginAttempt route
+app.post('/loginAttempt', async (req, res) => {
   const { username, password } = req.body;
+  if (!username || !password) return res.status(400).send("Missing username or password");
 
-  if (!username || !password) {
-    return res.status(400).send("Missing username or password");
-  }
+  const user = await users.findOne({ username });
 
-  if (!users[username]) {
-    users[username] = password;
+  if (!user) {
+    await users.insertOne({ username, password });
     return res.send("Welcome!");
-  } else if (users[username] === password) {
+  } else if (user.password === password) {
     return res.send("Welcome back!");
   } else {
     return res.status(401).send("Login failed");
   }
 });
 
-app.post('/changeUsername', (req, res) => {
-    const {oldUsername, newUsername, password } = req.body;
+//changeUsername route
+app.post('/changeUsername', async (req, res) => {
+  const { oldUsername, newUsername, password } = req.body;
+  if (!oldUsername || !newUsername || !password)
+    return res.status(400).send("Missing information");
 
-    if (!oldUsername || !newUsername || !password) {
-        return res.status(400).send("Missing information");
-    }
+  const user = await users.findOne({ username: oldUsername });
+  if (!user) return res.status(401).send("No user by that name");
+  if (user.password !== password)
+    return res.status(401).send("Incorrect username or password");
 
-    if(!users[oldUsername]) {
-        return res.status(401).send("No user by that name");
-    }
+  //Update username in users collection
+  await users.deleteOne({ username: oldUsername });
+  await users.insertOne({ username: newUsername, password });
 
-    if(users[oldUsername] === password) {
-        appdata.forEach(record => {
-            if(record.holder.trim() === oldUsername) {
-                record.holder = newUsername;
-            }
-        });
-        delete users[oldUsername]
-        users[newUsername] = password
-        return res.send("Changed!")
-    } else {
-        return res.status(401).send("Incorrect username or password")
-    }
+  //Update records that reference this holder
+  await records.updateMany(
+    { holder: oldUsername },
+    { $set: { holder: newUsername } }
+  );
+
+  return res.send("Changed!");
 });
 
-
-// GET all records
-app.get('/data', (req, res) => {
-  res.json(appdata);
+//GET all records
+app.get('/data', async (req, res) => {
+  const allRecords = await records.find().toArray();
+  res.json(allRecords);
 });
 
-// Add a new record
-app.post('/submit', (req, res) => {
+//Add a new record
+app.post('/submit', async (req, res) => {
   try {
     const newRecord = req.body;
     newRecord.year = Number(newRecord.year);
     newRecord.currentlyHeld = false;
 
-    // Update currentlyHeld flags
-    appdata.forEach(record => {
-      if (
-        newRecord.record === record.record &&
-        newRecord.year >= record.year &&
-        record.currentlyHeld
-      ) {
-        newRecord.currentlyHeld = true;
-        record.currentlyHeld = false;
-      }
+    //Check if this record should become the current holder
+    const current = await records.findOne({
+      record: newRecord.record,
+      currentlyHeld: true
     });
 
-    appdata.push(newRecord);
-    console.log('New:', appdata);
+    if (!current || newRecord.year >= current.year) {
+      newRecord.currentlyHeld = true;
+      if (current) {
+        await records.updateOne(
+          { _id: current._id },
+          { $set: { currentlyHeld: false } }
+        );
+      }
+    }
+
+    await records.insertOne(newRecord);
     res.status(200).send('Record added!');
   } catch (err) {
-    console.error('JSON Parsing Error:', err);
+    console.error('Insert Error:', err);
     res.status(400).send('Invalid JSON');
   }
 });
 
-// Remove a record
-app.post('/expunge', (req, res) => {
+//Remove a record
+app.post('/expunge', async (req, res) => {
   try {
-    const toRemove = req.body;
-    const index = appdata.findIndex(
-      record =>
-        record.record === toRemove.record &&
-        record.holder === toRemove.holder &&
-        record.year === toRemove.year
-    );
+    const { record, holder, year } = req.body;
+    const toRemove = await records.findOne({ record, holder, year: Number(year) });
+    if (!toRemove) return res.status(200).send('Record not found.');
 
-    if (index !== -1) {
-      const wasHeld = appdata[index].currentlyHeld;
-      appdata.splice(index, 1);
+    const wasHeld = toRemove.currentlyHeld;
+    await records.deleteOne({ _id: toRemove._id });
 
-      // If the removed record was currently held, reassign
-      if (wasHeld) {
-        let recent = -1;
-        let bestYear = -Infinity;
-        appdata.forEach((record, i) => {
-          if (record.record === toRemove.record && record.year > bestYear) {
-            bestYear = record.year;
-            recent = i;
-          }
-        });
-        if (recent !== -1) appdata[recent].currentlyHeld = true;
+    if (wasHeld) {
+      const mostRecent = await records
+        .find({ record })
+        .sort({ year: -1 })
+        .limit(1)
+        .next();
+      if (mostRecent) {
+        await records.updateOne(
+          { _id: mostRecent._id },
+          { $set: { currentlyHeld: true } }
+        );
       }
-    } else {
-      console.log('Error: Entry Not Found');
     }
-    res.status(200).send('Record removed (or no change if not found).');
+    res.status(200).send('Record removed.');
   } catch (err) {
-    console.error('JSON Parsing Error:', err);
+    console.error('Delete Error:', err);
     res.status(400).send('Invalid JSON');
   }
 });

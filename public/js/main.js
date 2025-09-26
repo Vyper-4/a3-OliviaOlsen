@@ -63,11 +63,17 @@ let currentUsername = sessionStorage.getItem("username") || "";
       const response = await fetch("/data");
       const data = await response.json();
 
-      document.getElementById("pacmanEnt").innerHTML = "";
-      document.getElementById("galagaEnt").innerHTML = "";
-      document.getElementById("snakeEnt").innerHTML = "";
+      const pacmanEnt = document.getElementById("pacmanEnt");
+      const galagaEnt = document.getElementById("galagaEnt");
+      const snakeEnt = document.getElementById("snakeEnt");
 
-      const onlyMine = document.getElementById("myRecordsCheckbox").checked;
+      if (pacmanEnt) pacmanEnt.innerHTML = "";
+      if (galagaEnt) galagaEnt.innerHTML = "";
+      if (snakeEnt) snakeEnt.innerHTML = "";
+
+
+      const onlyMine = document.getElementById("myRecordsCheckbox")?.checked || false;
+
 
       data.forEach(record => {
         if (onlyMine && record.holder !== currentUsername) return;
@@ -77,16 +83,16 @@ let currentUsername = sessionStorage.getItem("username") || "";
         }
 
         const newRecord = document.createElement("li");
-        const br = document.createElement("br");
+        //const br = document.createElement("br");
         newRecord.textContent = `${record.holder}, ${record.year}`;
 
         if (record.currentlyHeld) {
           newRecord.style.fontWeight = "bold";
-          newRecord.style.color = "#0ee60aff";
+          newRecord.style.color = "#4AF948";
         }
 
         const containerId = record.record + "Ent";
-        document.getElementById(containerId)?.appendChild(br);
+        //document.getElementById(containerId)?.appendChild(br);
         document.getElementById(containerId)?.appendChild(newRecord);
       });
     } catch (err) {
