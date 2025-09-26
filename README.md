@@ -1,6 +1,6 @@
 ## Record History for Arcade Games
 
-http://a3-oliviaolsen.render.me
+https://a3-oliviaolsen.onrender.com
 
 - the goal of the application
 The goal of this app was to allow users to track records on old arcade games within a friendgroup. These are old games, and records usually take years, so it's divided by years, although in hindsight I should have included full dates.
